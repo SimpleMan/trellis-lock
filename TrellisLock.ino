@@ -3,6 +3,8 @@
 #include <Adafruit_Trellis.h>
 Adafruit_Trellis trellis = Adafruit_Trellis();
 #define numKeys 16
+//Pass
+#include <avr/eeprom.h>
 
 int currentFlash = 0;
 int numTimes = 0;
@@ -57,7 +59,7 @@ int passCode = 15;
 int passTmp;
 boolean isAuthenticated = false;
 
-boolean checkPasscode()
+void checkPasscode()
 {
   for (uint8_t i=0; i<numKeys; i++) {
 
@@ -85,6 +87,16 @@ boolean checkPasscode()
   }
 
   trellis.writeDisplay();
+}
+
+void setPassword(int pass)
+{
+  eeprom_write_word( (uint16_t *) 0, pass );    //write a 16-bit int to EEPROM address 0
+}
+
+void getPassword()
+{
+  passCode = eeprom_read_word( (uint16_t *) 0 );    //read a 16-bit int from address 0
 }
 
 boolean acceptingCommands = false;
@@ -160,6 +172,9 @@ void setup()
   trellis.begin(0x70);
   trellis.clear();
   trellis.writeDisplay();
+
+  //Check if password is set
+  //getPassword();
 }
 
 void loop()
