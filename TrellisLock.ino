@@ -48,12 +48,8 @@ void flash()
     numTimes = 0;
     currentInterval = 0;
     previousMillis = 0;
-    currentMillis = 0;
     trellis.clear();
-    // Bottom Left and Right Controls
-    trellis.setLED(12);
-    trellis.setLED(15);
-    trellis.writeDisplay();
+    checkControls();
   }
 }
 
@@ -64,19 +60,14 @@ boolean isAuthenticated = false;
 boolean checkPasscode()
 {
   for (uint8_t i=0; i<numKeys; i++) {
-    if (trellis.justPressed(i)) {
-      // Alternate the LED
+
+    if (trellis.justReleased(i)) {
       if (trellis.isLED(i)) {
         trellis.clrLED(i);
+        bitWrite(passTmp, i, 0);
       } else {
         trellis.setLED(i);
-      }
-
-    } else if (trellis.justReleased(i)) {
-      if (trellis.isLED(i)) {
         bitWrite(passTmp, i, 1);
-      } else {
-        bitWrite(passTmp, i, 0);
       }
       // Serial.print("Temp Pass:   ");
       // Serial.println(passTmp, BIN);
@@ -96,16 +87,69 @@ boolean checkPasscode()
   trellis.writeDisplay();
 }
 
+boolean acceptingCommands = false;
+
 void checkControls()
 {
-  //Left Button
-  if(trellis.justPressed(12)) {
-    Serial.println("Left Control Pressed");
+  // Bottom Left and Right Controls
+  trellis.setLED(12);
+  trellis.setLED(15);
+  trellis.writeDisplay();
+  acceptingCommands = true;
+
+  // //Left Button
+  // if(trellis.justPressed(12)) {
+  //   Serial.println("Left Control Pressed");
+  // }
+  // //Right Button
+  // if(trellis.justPressed(15)) {
+  //   Serial.println("Right Control Pressed");
+  // }
+}
+
+long btnInterval = 3000;
+unsigned long btnHoldStart = 0;
+boolean btnState = false;
+boolean btnLastState = false;
+boolean allow = false;
+int btnCurrent = -1;
+
+void checkButtonHold()
+{
+  for (uint8_t i=0; i<numKeys; i++) {
+    if(trellis.isKeyPressed(i)) {
+      btnCurrent = i;
+    }
   }
-  //Right Button
-  if(trellis.justPressed(15)) {
-    Serial.println("Right Control Pressed");
+
+  btnState = trellis.isKeyPressed(btnCurrent);
+
+  if(btnState && !btnLastState){
+    btnHoldStart = millis();
+    allow = true;
   }
+
+  if(allow && btnState && btnLastState){
+    if(millis() - btnHoldStart >= btnInterval) {
+      btnHoldStart = 0;
+      allow = false;
+      Serial.print(btnCurrent);
+      Serial.println(" Button held for 3 seconds");
+      setupFlash(500, 1);
+
+      //Left Button
+      if(btnCurrent == 12) {
+        Serial.println("New Password Setting!");
+      }
+
+      //Right button
+      if(btnCurrent == 15) {
+        Serial.println("Confirm Password");
+      }
+    }
+  }
+
+  btnLastState = btnState;
 }
 
 void setup()
@@ -118,19 +162,19 @@ void setup()
   trellis.writeDisplay();
 }
 
-
 void loop()
 {
-  //delay(30);
+  delay(30);
 
-  //If Trellis button press
-  if(trellis.readSwitches()){
-    if(!isAuthenticated){
+
+  if(!isAuthenticated || acceptingCommands) {
+    trellis.readSwitches();
+
+    if(!isAuthenticated) {
       checkPasscode();
     } else {
-      checkControls();
+      checkButtonHold();
     }
-
   }
 
   if (flashDisplay) {
