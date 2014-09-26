@@ -14,6 +14,7 @@ long previousMillis = 0;
 
 boolean flashDisplay = false;
 boolean flashOn = false;
+boolean acceptingCommands = false;
 
 void setupFlash(long interval, int times)
 {
@@ -52,7 +53,7 @@ void flash()
     currentInterval = 0;
     previousMillis = 0;
     trellis.clear();
-    setControls();
+    acceptingCommands = true;
   }
 }
 
@@ -63,6 +64,7 @@ boolean isAuthenticated = false;
 
 void checkPasscode()
 {
+  //Serial.println("checkPasscode");
   for (uint8_t i=0; i<numKeys; i++) {
 
     if (trellis.justReleased(i)) {
@@ -91,20 +93,36 @@ void checkPasscode()
   trellis.writeDisplay();
 }
 
+int newPass;
 boolean settingPass = false;
 
 void setPassword()
 {
+  //Serial.println("setPassword");
   //Calculate password from trellis
-  eeprom_write_word( (uint16_t *) 1, pass );    //write a 16-bit int to EEPROM address 1
-  EEPROM.write(0,1);
+  for (uint8_t i=0; i<numKeys; i++) {
+    if (trellis.justReleased(i)) {
+      if (trellis.isLED(i)) {
+        trellis.clrLED(i);
+        bitWrite(newPass, i, 0);
+      } else {
+        trellis.setLED(i);
+        bitWrite(newPass, i, 1);
+      }
+    }
+  }
+
+  trellis.writeDisplay();
+  // eeprom_write_word( (uint16_t *) 1, pass );    //write a 16-bit int to EEPROM address 1
+  // EEPROM.write(0,1);
 }
 
-boolean isPassSet = false;
+//boolean isPassSet = false;
+boolean passSet = false;
 
 void getPassword()
 {
-  passSet = EEPROM.read(0,1);
+  //passSet = EEPROM.read(0,1);
 
   if(passSet) {
     passCode = eeprom_read_word( (uint16_t *) 1 );    //read a 16-bit int from address 1
@@ -117,27 +135,7 @@ void getPassword()
 
 void clearPassword()
 {
-  EEPROM.write(0,1);
-}
-
-boolean acceptingCommands = false;
-
-void setControls()
-{
-  // Bottom Left and Right Controls
-  trellis.setLED(12);
-  trellis.setLED(15);
-  trellis.writeDisplay();
-  acceptingCommands = true;
-
-  // //Left Button
-  // if(trellis.justPressed(12)) {
-  //   Serial.println("Left Control Pressed");
-  // }
-  // //Right Button
-  // if(trellis.justPressed(15)) {
-  //   Serial.println("Right Control Pressed");
-  // }
+  //EEPROM.write(0,1);
 }
 
 long btnInterval = 3000;
@@ -149,6 +147,7 @@ int btnCurrent = -1;
 
 void checkButtonHold()
 {
+  //Serial.println("checkButtonHold");
   for (uint8_t i=0; i<numKeys; i++) {
     if(trellis.isKeyPressed(i)) {
       btnCurrent = i;
@@ -166,19 +165,33 @@ void checkButtonHold()
     if(millis() - btnHoldStart >= btnInterval) {
       btnHoldStart = 0;
       allow = false;
-      Serial.print(btnCurrent);
-      Serial.println(" Button held for 3 seconds");
+      // Serial.print(btnCurrent);
+      // Serial.println(" Button held for 3 seconds");
       setupFlash(500, 1);
 
-      //Left Button
+      //Bottom Left Button
       if(btnCurrent == 12) {
-        Serial.println("New Password Setting!");
+        Serial.println("Setting new password");
         settingPass = true;
+        trellis.clear();
+        trellis.writeDisplay();
       }
 
-      //Right button
-      if(btnCurrent == 15) {
-        Serial.println("Confirm Password");
+      //Bottom Right button
+      if(btnCurrent == 15 && settingPass) {
+        Serial.println("Password set");
+        passCode = newPass;
+        newPass = 0;
+        passTmp = 0;
+        settingPass = false;
+      }
+
+      //Top Left Button
+      if(btnCurrent == 0) {
+        Serial.println("Locked");
+        isAuthenticated = false;
+        acceptingCommands = false;
+        passTmp = 0;
       }
     }
   }
@@ -196,6 +209,7 @@ void setup()
   trellis.writeDisplay();
 
   //Check if password is set
+  //settingPass = true;
   //getPassword();
 }
 
@@ -208,6 +222,7 @@ void loop()
 
     if(settingPass) {
       setPassword();
+      checkButtonHold();
     }else if(!isAuthenticated) {
       checkPasscode();
     } else {
