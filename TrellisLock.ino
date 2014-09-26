@@ -5,6 +5,7 @@ Adafruit_Trellis trellis = Adafruit_Trellis();
 #define numKeys 16
 //Pass
 #include <avr/eeprom.h>
+#include <EEPROM.h>
 
 int currentFlash = 0;
 int numTimes = 0;
@@ -51,12 +52,13 @@ void flash()
     currentInterval = 0;
     previousMillis = 0;
     trellis.clear();
-    checkControls();
+    setControls();
   }
 }
 
 int passCode = 15;
 int passTmp;
+boolean isPassSet;
 boolean isAuthenticated = false;
 
 void checkPasscode()
@@ -89,19 +91,38 @@ void checkPasscode()
   trellis.writeDisplay();
 }
 
-void setPassword(int pass)
+boolean settingPass = false;
+
+void setPassword()
 {
-  eeprom_write_word( (uint16_t *) 0, pass );    //write a 16-bit int to EEPROM address 0
+  //Calculate password from trellis
+  eeprom_write_word( (uint16_t *) 1, pass );    //write a 16-bit int to EEPROM address 1
+  EEPROM.write(0,1);
 }
+
+boolean isPassSet = false;
 
 void getPassword()
 {
-  passCode = eeprom_read_word( (uint16_t *) 0 );    //read a 16-bit int from address 0
+  passSet = EEPROM.read(0,1);
+
+  if(passSet) {
+    passCode = eeprom_read_word( (uint16_t *) 1 );    //read a 16-bit int from address 1
+    isPassSet = true;
+  } else {
+    isPassSet = false;
+  }
+
+}
+
+void clearPassword()
+{
+  EEPROM.write(0,1);
 }
 
 boolean acceptingCommands = false;
 
-void checkControls()
+void setControls()
 {
   // Bottom Left and Right Controls
   trellis.setLED(12);
@@ -152,6 +173,7 @@ void checkButtonHold()
       //Left Button
       if(btnCurrent == 12) {
         Serial.println("New Password Setting!");
+        settingPass = true;
       }
 
       //Right button
@@ -181,11 +203,12 @@ void loop()
 {
   delay(30);
 
-
   if(!isAuthenticated || acceptingCommands) {
     trellis.readSwitches();
 
-    if(!isAuthenticated) {
+    if(settingPass) {
+      setPassword();
+    }else if(!isAuthenticated) {
       checkPasscode();
     } else {
       checkButtonHold();
